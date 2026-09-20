@@ -1,0 +1,85 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  pseudonym String   @unique // Ej. "R-8F3K2"
+  role      Role     @default(REPORTER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  identity  Identity?
+  reports   Report[]
+}
+
+enum Role {
+  REPORTER
+  REVIEWER
+}
+
+model Identity {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id])
+
+  // Datos cifrados con AES-256-GCM
+  encryptedData  String   // JSON cifrado en base64 o hex
+  iv             String   // Vector de inicialización
+  authTag        String   // Etiqueta de autenticación
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Report {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  category    String
+  description String
+  date        DateTime // Fecha del incidente
+  location    String   // Lugar aproximado
+
+  evidence    Evidence[]
+  auditLogs   AuditLog[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Evidence {
+  id          String   @id @default(uuid())
+  reportId    String
+  report      Report   @relation(fields: [reportId], references: [id])
+
+  fileName    String   // Nombre original del archivo (opcional/hasheado)
+  mimeType    String
+  size        Int
+
+  fileHash    String   // Hash SHA-256 del archivo descifrado/original para integridad
+  filePath    String   // Ruta o key donde se guardó cifrado
+
+  // Datos para descifrar el archivo (AES-256-GCM)
+  iv          String
+  authTag     String
+
+  serverTime  DateTime @default(now())
+  createdAt   DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  reportId  String
+  report    Report   @relation(fields: [reportId], references: [id])
+
+  reviewerId String   // ID del revisor que accedió
+  action    String   // Ej: "VIEW_REPORT", "VIEW_EVIDENCE"
+  timestamp DateTime @default(now())
+}
